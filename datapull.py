@@ -69,7 +69,7 @@ class FredData(multiprocessing.Process):
         self.ticker = ticker
         self.api_key = KEYS["fred_apikey"]
 
-    def get_financial_data(self):
+    def get_data(self):
         FRED = Fred(self.api_key)
         today = date.today()
         today = today.strftime("%Y-%m-%d")
