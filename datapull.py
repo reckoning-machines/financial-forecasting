@@ -50,12 +50,12 @@ class StockData(multiprocessing.Process):
         return
 
     def get_ratios(self):
-        url = f"https://financialmodelingprep.com/api/v3/ratios/{self.ticker}?apikey={self.api_key}"
+        url = f"https://financialmodelingprep.com/api/v3/ratios/{self.ticker}?apikey={self.api_key}&period=quarter"
         self.ratios = self.fmp_datapull(url)
         return
 
     def get_key_metrics(self):
-        url = f"https://financialmodelingprep.com/api/v3/key-metrics/{self.ticker}?apikey={self.api_key}"
+        url = f"https://financialmodelingprep.com/api/v3/key-metrics/{self.ticker}?apikey={self.api_key}&period=quarter"
         self.key_metrics = self.fmp_datapull(url)
         return
 
