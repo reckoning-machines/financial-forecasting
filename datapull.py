@@ -15,17 +15,39 @@ KEYS = toml.load(f"{script_path}/keys.toml")
 
 
 class StockData(multiprocessing.Process):
+    """
+    A class to represent a stock.
+    Inherits from multi processing to facilitate use of cores
+    for instantiating several of these classes in a list
+    ...
+
+    Attributes
+    ----------
+    ticker : str
+        stock ticker ... no exchange
+        Example: AAPL
+    verbose : bool
+        whether to print url links or not etc
+
+    Methods
+    -------
+    """
+
     def __init__(self, ticker, verbose=0):
+
         multiprocessing.Process.__init__(self)
         self.ticker = ticker
         self.api_key = KEYS["fmp_apikey"]
         self.verbose = verbose
 
     def fmp_datapull(self, url, nested=False):
+        """
+        generic method to process return data from fmp
+        """
         if nested == False:
             json = requests.get(url).json()
             df = pd.DataFrame(json)
-        else:
+        else:  # some links return data in a dictionary form
             json = requests.get(url).json()
             # ticker = list(json.keys())[0]
             data = list(json.keys())[1]
@@ -33,6 +55,9 @@ class StockData(multiprocessing.Process):
         return df
 
     def get_financial_data(self):
+        """
+        Income statement and balance sheet data
+        """
         income_statement_url = f"https://financialmodelingprep.com/api/v3/income-statement-as-reported/{self.ticker}?period=quarterly&apikey={self.api_key}&limit=50"
         balance_sheet_url = f"https://financialmodelingprep.com/api/v3/balance-sheet-statement-as-reported/{self.ticker}?period=quarter&apikey={self.api_key}&limit=50"
         self.income_statement = self.fmp_datapull(income_statement_url)
@@ -40,21 +65,33 @@ class StockData(multiprocessing.Process):
         return
 
     def get_price_data(self):
+        """
+        Price data historical
+        """
         url = f"https://financialmodelingprep.com/api/v3/historical-price-full/{self.ticker}?apikey={self.api_key}"
         self.price_data = self.fmp_datapull(url, nested=True)
         return
 
     def get_analyst_estimates(self):
+        """
+        Analyst estimate data
+        """
         url = f"https://financialmodelingprep.com/api/v3/analyst-estimates/{self.ticker}?apikey={self.api_key}"
         self.analyst_estimates = self.fmp_datapull(url)
         return
 
     def get_ratios(self):
+        """
+        Ratios data
+        """
         url = f"https://financialmodelingprep.com/api/v3/ratios/{self.ticker}?apikey={self.api_key}&period=quarter"
         self.ratios = self.fmp_datapull(url)
         return
 
     def get_key_metrics(self):
+        """
+        Metrics data
+        """
         url = f"https://financialmodelingprep.com/api/v3/key-metrics/{self.ticker}?apikey={self.api_key}&period=quarter"
         self.key_metrics = self.fmp_datapull(url)
         return
@@ -64,10 +101,29 @@ from datetime import date
 
 
 class FredData(multiprocessing.Process):
-    def __init__(self, ticker):
+    """
+    A class to represent a single data series from the st louis fed.
+    Inherits from multi processing to facilitate use of cores
+    for instantiating several of these classes in a list
+    ...
+
+    Attributes
+    ----------
+    ticker : str
+        FRED series
+        Example:LAUST060000000000003A
+    verbose : bool
+        whether to print url links or not etc
+
+    Methods
+    -------
+    """
+
+    def __init__(self, ticker, verbose=0):
         multiprocessing.Process.__init__(self)
         self.ticker = ticker
         self.api_key = KEYS["fred_apikey"]
+        self.verbose = verbose
 
     def get_data(self):
         FRED = Fred(self.api_key)
