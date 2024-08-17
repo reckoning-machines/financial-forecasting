@@ -34,11 +34,30 @@ class StockData(multiprocessing.Process):
     """
 
     def __init__(self, ticker, verbose=0):
-
+        """
+        inherit from multiprocessing
+        init variables
+        instantiate the earnings / reporting calendar for this stock
+        """
         multiprocessing.Process.__init__(self)
         self.ticker = ticker
         self.api_key = KEYS["fmp_apikey"]
         self.verbose = verbose
+        self.get_calendar_data()
+
+    def create_featureset(self):
+        self.featureset = self.calendar.sort_values("date")
+        self.featureset["date"] = pd.to_datetime(self.featureset["date"])
+        self.featureset["report_date"] = pd.to_datetime(self.featureset["date"])
+        self.featureset["previous_report_date"] = pd.to_datetime(
+            self.featureset["date"]
+        ).shift(1)
+
+        self.featureset = self.featureset.loc[~self.featureset["epsEstimated"].isna()]
+        self.featureset = (
+            self.featureset.set_index("date").resample("D").ffill().reset_index()
+        )
+        return
 
     def fmp_datapull(self, url, nested=False):
         """
@@ -53,6 +72,11 @@ class StockData(multiprocessing.Process):
             data = list(json.keys())[1]
             df = pd.DataFrame(json[data])
         return df
+
+    def get_calendar_data(self):
+        url = f"https://financialmodelingprep.com/api/v3/historical/earning_calendar/{self.ticker}?apikey={self.api_key}"
+        self.calendar = self.fmp_datapull(url)
+        return
 
     def get_financial_data(self):
         """
