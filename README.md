@@ -10,8 +10,8 @@ To do:
 
 1. Forecast earnings vs the Street
 
-2. establish daily returns as the 'target' for the machine learning module.
+2. Establish daily returns as the 'target' for the machine learning module.
 
-3. Rolling join (using functools) module to create the final ML dataset.
+3. Rolling left join (using functools) module to create the final ML dataset.
 
 4. ML modeling, output, and daily roll foward backtest.
