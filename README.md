@@ -2,7 +2,9 @@ A repo to facilitate data pulls from https://site.financialmodelingprep.com/ and
 
 Initial pulls are shown in the example notebook.
 
-Fred api key and FMP api key must be placed in a keys.toml file in the root.
+Your own Fred api key and FMP api key must be placed in a keys.toml file in the root, in the format 
+fmp_apikey="yourkey"
+fred_apikey="yourkey"
 
 To do: 
 
