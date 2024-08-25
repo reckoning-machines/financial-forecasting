@@ -1,5 +1,8 @@
 import toml
+import warnings
 import pandas as pd
+
+pd.set_option("mode.chained_assignment", None)
 import numpy as np
 import requests
 from datetime import datetime
@@ -15,6 +18,7 @@ from pmdarima.metrics import smape
 import numpy as np
 import matplotlib.pyplot as plt
 
+
 script_path = os.path.dirname(os.path.realpath(__file__))
 KEYS = toml.load(f"{script_path}/keys.toml")
 
@@ -24,34 +28,95 @@ class Forecast:
     a class to handle a single time series forecast, either univariate or multivariate
     """
 
-    def __init__(self, ticker="", target_column="", data_columns=[], data=None):
+    def __init__(self, ticker="", forecast_column="", data_columns=[], data=None):
         self.data = data
         self.ticker = ticker
-        self.target_column = target_column
+        self.target_column = forecast_column
         self.data_columns = data_columns
         self.forecast_periods = 1
 
-    def fit(self):
+    def fit(self, forecast_column="value", feature_columns=[], seasonal=False, m=4):
         # Load/split your data
-        y = self.data[self.target_column]
-        x = self.data[self.data_columns]
+        g = self.data.dropna()
+        if feature_columns != []:
+            exog = feature_columns
+            data = g.dropna()
+            g[exog] = g[exog].astype(float)
 
-        # Fit your model
-        self.model = pm.auto_arima(
-            x,
-            d=1,
-            seasonal=False,
-            stepwise=True,
-            suppress_warnings=True,
-            error_action="ignore",
-            max_p=6,
-            max_order=None,
-            trace=True,
+            model = pm.auto_arima(
+                # maxiter=30,
+                # method="nm",
+                g[forecast_column],
+                g[exog],
+                m=m,
+                seasonal=seasonal,
+                test="adf",
+                error_action="ignore",
+                suppress_warnings=True,
+                stepwise=True,
+                trace=False,
+                method="nm",
+                maxiter=30,
+            )
+            model.fit(g[forecast_column], g[exog])
+            fitted, conf_int = model.predict_in_sample(
+                return_conf_int=True, alpha=0.05, X=g[exog]
+            )
+        else:
+            model = pm.auto_arima(
+                g[forecast_column],
+                m=m,
+                seasonal=seasonal,
+                test="adf",
+                error_action="ignore",
+                suppress_warnings=True,
+                stepwise=True,
+                trace=False,
+            )
+            model.fit(g[forecast_column])
+            fitted, conf_int = model.predict_in_sample(return_conf_int=True, alpha=0.05)
+
+        g["predictions"] = fitted
+        conf_int = pd.DataFrame(conf_int)
+
+        conf_int.columns = ["lower_confidence", "upper_confidence"]
+        g["lower_confidence"] = conf_int["lower_confidence"].values
+        g["upper_confidence"] = conf_int["upper_confidence"].values
+
+        g["lower_confidence"] = np.where(
+            g["lower_confidence"] < -100, 0, g["lower_confidence"]
+        )
+        g["lower_confidence"] = np.where(
+            g["lower_confidence"] > 100, 0, g["lower_confidence"]
+        )
+        g["upper_confidence"] = np.where(
+            g["upper_confidence"] < -100, 0, g["upper_confidence"]
+        )
+        g["upper_confidence"] = np.where(
+            g["upper_confidence"] > 100, 0, g["upper_confidence"]
         )
 
-    def forecast_one_step(self):
-        fc, conf_int = self.model.predict(n_periods=1, return_conf_int=True)
-        return (fc.tolist()[0], np.asarray(conf_int).tolist()[0])
+        x = model.summary()
+        d = pd.DataFrame(x.tables[1])[[0, 1]]
+        d = d.iloc[1:, :].T
+        d.columns = d.iloc[0]
+        d = d[1:]
+        d.columns = d.columns.astype(str)
+
+        for col in feature_columns:
+            g[col + "_coef"] = float(d[col].iloc[0].data)
+        self.mape = (
+            (g[forecast_column] - g.predictions).abs() / g[forecast_column]
+        ).mean()
+        self.correlation = g[forecast_column].corr(g["predictions"])
+
+        corr_matrix = np.corrcoef(g[forecast_column], g.predictions)
+        corr = corr_matrix[0, 1]
+        self.r_squared = corr**2
+
+        self.model = model
+        self.forecast_data = g.tail(-2)
+        return
 
 
 class StockData(multiprocessing.Process):
