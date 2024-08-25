@@ -9,9 +9,49 @@ import multiprocessing
 import os
 import random
 from fredapi import Fred
+import pmdarima as pm
+from pmdarima.model_selection import train_test_split
+from pmdarima.metrics import smape
+import numpy as np
+import matplotlib.pyplot as plt
 
 script_path = os.path.dirname(os.path.realpath(__file__))
 KEYS = toml.load(f"{script_path}/keys.toml")
+
+
+class Forecast:
+    """
+    a class to handle a single time series forecast, either univariate or multivariate
+    """
+
+    def __init__(self, ticker="", target_column="", data_columns=[], data=None):
+        self.data = data
+        self.ticker = ticker
+        self.target_column = target_column
+        self.data_columns = data_columns
+        self.forecast_periods = 1
+
+    def fit(self):
+        # Load/split your data
+        y = self.data[self.target_column]
+        x = self.data[self.data_columns]
+
+        # Fit your model
+        self.model = pm.auto_arima(
+            x,
+            d=1,
+            seasonal=False,
+            stepwise=True,
+            suppress_warnings=True,
+            error_action="ignore",
+            max_p=6,
+            max_order=None,
+            trace=True,
+        )
+
+    def forecast_one_step(self):
+        fc, conf_int = self.model.predict(n_periods=1, return_conf_int=True)
+        return (fc.tolist()[0], np.asarray(conf_int).tolist()[0])
 
 
 class StockData(multiprocessing.Process):
@@ -71,6 +111,8 @@ class StockData(multiprocessing.Process):
             # ticker = list(json.keys())[0]
             data = list(json.keys())[1]
             df = pd.DataFrame(json[data])
+        if "date" in df.columns:
+            df = df.sort_values("date")
         return df
 
     def get_calendar_data(self):
