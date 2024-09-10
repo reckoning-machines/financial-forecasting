@@ -119,7 +119,7 @@ class Forecast:
         return
 
 
-class StockData(multiprocessing.Process):
+class Featureset(multiprocessing.Process):
     """
     A class to represent a stock.
     Inherits from multi processing to facilitate use of cores
@@ -148,7 +148,36 @@ class StockData(multiprocessing.Process):
         self.ticker = ticker
         self.api_key = KEYS["fmp_apikey"]
         self.verbose = verbose
-        self.get_calendar_data()
+        self.data_dictionary = {
+            "calendar": {
+                "url": f"https://financialmodelingprep.com/api/v3/historical/earning_calendar/{self.ticker}?apikey={self.api_key}",
+                "nested": False,
+            },
+            "income_statement": {
+                "url": f"https://financialmodelingprep.com/api/v3/income-statement-as-reported/{self.ticker}?period=quarterly&apikey={self.api_key}&limit=50",
+                "nested": False,
+            },
+            "prices": {
+                "url": f"https://financialmodelingprep.com/api/v3/historical-price-full/{self.ticker}?apikey={self.api_key}",
+                "nested": True,
+            },
+            "analyst_estimates": {
+                "url": f"https://financialmodelingprep.com/api/v3/analyst-estimates/{self.ticker}?apikey={self.api_key}",
+                "nested": False,
+            },
+            "ratios": {
+                "url": f"https://financialmodelingprep.com/api/v3/ratios/{self.ticker}?apikey={self.api_key}&period=quarter",
+                "nested": False,
+            },
+            "key_metrics": {
+                "url": f"https://financialmodelingprep.com/api/v3/key-metrics/{self.ticker}?apikey={self.api_key}&period=quarter",
+                "nested": False,
+            },
+        }
+        self.fmp_datapull("calendar")
+
+    def join(self):
+        return
 
     def create_featureset(self):
         self.featureset = self.calendar.sort_values("date")
@@ -164,68 +193,23 @@ class StockData(multiprocessing.Process):
         )
         return
 
-    def fmp_datapull(self, url, nested=False):
+    def fmp_datapull(self, data_key):
         """
         generic method to process return data from fmp
         """
-        if nested == False:
-            json = requests.get(url).json()
+        data_dictionary = self.data_dictionary[data_key]
+        if data_dictionary["nested"] == False:
+            json = requests.get(data_dictionary["url"]).json()
             df = pd.DataFrame(json)
         else:  # some links return data in a dictionary form
-            json = requests.get(url).json()
+            json = requests.get(data_dictionary["url"]).json()
             # ticker = list(json.keys())[0]
             data = list(json.keys())[1]
             df = pd.DataFrame(json[data])
         if "date" in df.columns:
             df = df.sort_values("date")
+        setattr(self, data_key, df)
         return df
-
-    def get_calendar_data(self):
-        url = f"https://financialmodelingprep.com/api/v3/historical/earning_calendar/{self.ticker}?apikey={self.api_key}"
-        self.calendar = self.fmp_datapull(url)
-        return
-
-    def get_financial_data(self):
-        """
-        Income statement and balance sheet data
-        """
-        income_statement_url = f"https://financialmodelingprep.com/api/v3/income-statement-as-reported/{self.ticker}?period=quarterly&apikey={self.api_key}&limit=50"
-        balance_sheet_url = f"https://financialmodelingprep.com/api/v3/balance-sheet-statement-as-reported/{self.ticker}?period=quarter&apikey={self.api_key}&limit=50"
-        self.income_statement = self.fmp_datapull(income_statement_url)
-        self.balance_sheet = self.fmp_datapull(balance_sheet_url)
-        return
-
-    def get_price_data(self):
-        """
-        Price data historical
-        """
-        url = f"https://financialmodelingprep.com/api/v3/historical-price-full/{self.ticker}?apikey={self.api_key}"
-        self.price_data = self.fmp_datapull(url, nested=True)
-        return
-
-    def get_analyst_estimates(self):
-        """
-        Analyst estimate data
-        """
-        url = f"https://financialmodelingprep.com/api/v3/analyst-estimates/{self.ticker}?apikey={self.api_key}"
-        self.analyst_estimates = self.fmp_datapull(url)
-        return
-
-    def get_ratios(self):
-        """
-        Ratios data
-        """
-        url = f"https://financialmodelingprep.com/api/v3/ratios/{self.ticker}?apikey={self.api_key}&period=quarter"
-        self.ratios = self.fmp_datapull(url)
-        return
-
-    def get_key_metrics(self):
-        """
-        Metrics data
-        """
-        url = f"https://financialmodelingprep.com/api/v3/key-metrics/{self.ticker}?apikey={self.api_key}&period=quarter"
-        self.key_metrics = self.fmp_datapull(url)
-        return
 
 
 from datetime import date
