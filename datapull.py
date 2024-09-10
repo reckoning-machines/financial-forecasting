@@ -132,7 +132,7 @@ class Featureset(multiprocessing.Process):
         stock ticker ... no exchange
         Example: AAPL
     verbose : bool
-        whether to print url links or not etc
+        whether to print url links or not etc (unused)
 
     Methods
     -------
@@ -142,6 +142,7 @@ class Featureset(multiprocessing.Process):
         """
         inherit from multiprocessing
         init variables
+        instantiate the data dictionary for available datapulls (in this case fmp)
         instantiate the earnings / reporting calendar for this stock
         """
         multiprocessing.Process.__init__(self)
@@ -176,26 +177,10 @@ class Featureset(multiprocessing.Process):
         }
         self.fmp_datapull("calendar")
 
-    def join(self):
-        return
-
-    def create_featureset(self):
-        self.featureset = self.calendar.sort_values("date")
-        self.featureset["date"] = pd.to_datetime(self.featureset["date"])
-        self.featureset["report_date"] = pd.to_datetime(self.featureset["date"])
-        self.featureset["previous_report_date"] = pd.to_datetime(
-            self.featureset["date"]
-        ).shift(1)
-
-        self.featureset = self.featureset.loc[~self.featureset["epsEstimated"].isna()]
-        self.featureset = (
-            self.featureset.set_index("date").resample("D").ffill().reset_index()
-        )
-        return
-
     def fmp_datapull(self, data_key):
         """
         generic method to process return data from fmp
+        BUT this could be a kusto call or reddis etc
         """
         data_dictionary = self.data_dictionary[data_key]
         if data_dictionary["nested"] == False:
@@ -210,6 +195,32 @@ class Featureset(multiprocessing.Process):
             df = df.sort_values("date")
         setattr(self, data_key, df)
         return df
+
+    def join(self,data_key):
+        """
+        generic method to left join data to calendar dataframe
+        """
+
+        if not hasattr(self, 'featureset'):
+            """
+            instantiate the calendar as the 'binder'
+            presumes calendar exists
+            """
+            self.featureset = self.calendar.sort_values("date")
+            self.featureset["date"] = pd.to_datetime(self.featureset["date"])
+            self.featureset["report_date"] = pd.to_datetime(self.featureset["date"])
+            self.featureset["previous_report_date"] = pd.to_datetime(
+                self.featureset["date"]
+            ).shift(1)
+
+            self.featureset = self.featureset.loc[~self.featureset["epsEstimated"].isna()]
+            self.featureset = (
+                self.featureset.set_index("date").resample("D").ffill().reset_index()
+            )
+        df = getattr(self,data_key)
+        self.featureset = self.featureset.merge(df,how='left',left_on='date',right_on='date')
+        return
+
 
 
 from datetime import date
